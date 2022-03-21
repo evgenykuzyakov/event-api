@@ -1,0 +1,21 @@
+{
+  "name": "berryclub-api",
+  "version": "0.0.1",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "koa": "^2.13.0",
+    "koa-router": "^10.1.0",
+    "koa-bodyparser": "^4.3.0",
+    "pg": "^8.7.0",
+    "axios": "^0.26.1"
+  },
+  "scripts": {
+    "start": "node app",
+    "dev": "nodemon -r dotenv/config app"
+  },
+  "devDependencies": {
+    "dotenv": "^8.2.0",
+    "nodemon": "^2.0.6"
+  }
+}
