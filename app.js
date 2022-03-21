@@ -9,6 +9,27 @@ const bodyParser = require('koa-bodyparser');
 const Events = require('./events');
 const axios = require("axios");
 
+const SubsFilename = "res/subs.json";
+
+function saveJson(json, filename) {
+  try {
+    const data = JSON.stringify(json);
+    fs.writeFileSync(filename, data);
+  } catch (e) {
+    console.error("Failed to save JSON:", filename, e);
+  }
+}
+
+function loadJson(filename) {
+  try {
+    let rawData = fs.readFileSync(filename);
+    return JSON.parse(rawData);
+  } catch (e) {
+    console.error("Failed to load JSON:", filename, e);
+  }
+  return null;
+}
+
 const PostTimeout = 1000;
 
 (async () => {
@@ -23,7 +44,7 @@ const PostTimeout = 1000;
     scheduleUpdate(1000);
   }, delay);
 
-  const subs = {};
+  const subs = loadJson(SubsFilename) || {};
 
   // subs.push({
   //   "filter": [{
@@ -81,6 +102,7 @@ const PostTimeout = 1000;
           throw new Error(`Secret "${secret}" is already present`);
         }
         subs[secret] = sub;
+        saveJson(subs, SubsFilename);
         ctx.body = JSON.stringify({
           "ok": true,
         }, null, 2);
@@ -99,6 +121,7 @@ const PostTimeout = 1000;
       const secret = req.secret;
       if (secret in subs) {
         delete subs[secret];
+        saveJson(subs, SubsFilename);
         ctx.body = JSON.stringify({
           "ok": true,
         }, null, 2);
