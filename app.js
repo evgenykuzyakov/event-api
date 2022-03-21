@@ -1,3 +1,5 @@
+const fs = require("fs");
+
 const Koa = require('koa');
 const app = new Koa();
 
@@ -20,12 +22,14 @@ function saveJson(json, filename) {
   }
 }
 
-function loadJson(filename) {
+function loadJson(filename, ignore) {
   try {
     let rawData = fs.readFileSync(filename);
     return JSON.parse(rawData);
   } catch (e) {
-    console.error("Failed to load JSON:", filename, e);
+    if (!ignore) {
+      console.error("Failed to load JSON:", filename, e);
+    }
   }
   return null;
 }
@@ -44,7 +48,7 @@ const PostTimeout = 1000;
     scheduleUpdate(1000);
   }, delay);
 
-  const subs = loadJson(SubsFilename) || {};
+  const subs = loadJson(SubsFilename, true) || {};
 
   // subs.push({
   //   "filter": [{
