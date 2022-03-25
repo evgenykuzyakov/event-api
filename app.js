@@ -42,6 +42,9 @@ const PostTimeout = 1000;
 const PastEventsLimit = 20000;
 const PastEventsTrimTo = 10000;
 
+const MaxEventsLimit = 1000;
+const DefaultEventsLimit = 100;
+
 (async () => {
   const eventsFetcher = await Events.init();
 
@@ -207,10 +210,14 @@ const PastEventsTrimTo = 10000;
       const sub = ctx.request.body;
       if ("filter" in sub) {
         const filteredEvents = getFilteredEvents(pastEvents, sub.filter);
+        const limit = Math.min(
+          Math.max(parseInt(sub.limit) || DefaultEventsLimit, 0),
+          Math.min(MaxEventsLimit, filteredEvents.length)
+        );
 
         ctx.body = JSON.stringify(
           {
-            events: filteredEvents,
+            events: filteredEvents.slice(filteredEvents.length - limit),
           },
           null,
           2
