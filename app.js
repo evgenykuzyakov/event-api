@@ -1,5 +1,7 @@
 const fs = require("fs");
 
+const cors = require("@koa/cors");
+
 const Koa = require("koa");
 const app = new Koa();
 app.proxy = true;
@@ -207,11 +209,11 @@ const DefaultEventsLimit = 100;
   router.post("/events", (ctx) => {
     ctx.type = "application/json; charset=utf-8";
     try {
-      const sub = ctx.request.body;
-      if ("filter" in sub) {
-        const filteredEvents = getFilteredEvents(pastEvents, sub.filter);
+      const body = ctx.request.body;
+      if ("filter" in body) {
+        const filteredEvents = getFilteredEvents(pastEvents, body.filter);
         const limit = Math.min(
-          Math.max(parseInt(sub.limit) || DefaultEventsLimit, 0),
+          Math.max(parseInt(body.limit) || DefaultEventsLimit, 0),
           Math.min(MaxEventsLimit, filteredEvents.length)
         );
 
@@ -233,14 +235,18 @@ const DefaultEventsLimit = 100;
   router.post("/subscribe", (ctx) => {
     ctx.type = "application/json; charset=utf-8";
     try {
-      const sub = ctx.request.body;
-      if ("filter" in sub && "url" in sub && "secret" in sub) {
-        const secret = sub.secret;
+      const body = ctx.request.body;
+      if ("filter" in body && "url" in body && "secret" in body) {
+        const secret = body.secret;
         if (secret in subs) {
           throw new Error(`Secret "${secret}" is already present`);
         }
-        sub.ip = ctx.request.ip;
-        subs[secret] = sub;
+        subs[secret] = {
+          ip: ctx.request.ip,
+          filter: body.filter,
+          url: body.url,
+          secret,
+        };
         saveJson(subs, SubsFilename);
         ctx.body = JSON.stringify(
           {
@@ -260,8 +266,8 @@ const DefaultEventsLimit = 100;
   router.post("/unsubscribe", (ctx) => {
     ctx.type = "application/json; charset=utf-8";
     try {
-      const req = ctx.request.body;
-      const secret = req.secret;
+      const body = ctx.request.body;
+      const secret = body.secret;
       if (secret in subs) {
         delete subs[secret];
         saveJson(subs, SubsFilename);
@@ -285,6 +291,7 @@ const DefaultEventsLimit = 100;
       console.log(ctx.method, ctx.path);
       await next();
     })
+    .use(cors())
     .use(bodyParser())
     .use(router.routes())
     .use(router.allowedMethods());
