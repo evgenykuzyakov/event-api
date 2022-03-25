@@ -1,17 +1,21 @@
 const fs = require("fs");
 
-const Koa = require('koa');
+const Koa = require("koa");
 const app = new Koa();
+app.proxy = true;
 
-const Router = require('koa-router');
+const Router = require("koa-router");
 const router = new Router();
 
-const bodyParser = require('koa-bodyparser');
+const bodyParser = require("koa-bodyparser");
 
-const Events = require('./events');
+const Events = require("./events");
 const axios = require("axios");
 
+const WebSocket = require("ws");
+
 const SubsFilename = "res/subs.json";
+const WsSubsFilename = "res/ws_subs.json";
 
 function saveJson(json, filename) {
   try {
@@ -35,20 +39,39 @@ function loadJson(filename, ignore) {
 }
 
 const PostTimeout = 1000;
+const PastEventsLimit = 20000;
+const PastEventsTrimTo = 10000;
 
 (async () => {
   const eventsFetcher = await Events.init();
 
   let scheduleUpdate, processEvents;
 
-  scheduleUpdate = (delay) => setTimeout(async () => {
-    const events = await eventsFetcher.fetchEvents();
-    console.log(`Fetched ${events.length} events`);
-    await processEvents(events);
-    scheduleUpdate(1000);
-  }, delay);
+  const pastEvents = [];
+
+  scheduleUpdate = (delay) =>
+    setTimeout(async () => {
+      const events = await eventsFetcher.fetchEvents();
+      pastEvents.push(...events);
+      if (pastEvents.length > PastEventsLimit) {
+        pastEvents.splice(0, pastEvents.length - PastEventsTrimTo);
+      }
+      console.log(
+        `Fetched ${events.length} events. Total ${pastEvents.length} events.`
+      );
+      await processEvents(events);
+      scheduleUpdate(1000);
+    }, delay);
 
   const subs = loadJson(SubsFilename, true) || {};
+
+  const WS_PORT = process.env.WS_PORT || 7071;
+
+  const wss = new WebSocket.Server({ port: WS_PORT });
+  console.log("WebSocket server listening on http://localhost:%d/", WS_PORT);
+
+  const wsClients = new Map();
+  const wsSubs = {};
 
   // subs.push({
   //   "filter": [{
@@ -68,35 +91,139 @@ const PostTimeout = 1000;
 
   const recursiveFilter = (filter, obj) => {
     if (isObject(filter) && isObject(obj)) {
-      return Object.keys(filter).every((key) => recursiveFilter(filter[key], obj[key]));
+      return Object.keys(filter).every((key) =>
+        recursiveFilter(filter[key], obj[key])
+      );
     } else if (Array.isArray(filter) && Array.isArray(obj)) {
       return filter.every((value, index) => recursiveFilter(value, obj[index]));
     } else {
       return filter === obj;
     }
-  }
+  };
+
+  const getFilteredEvents = (events, filter) => {
+    return events.filter((event) =>
+      Array.isArray(filter)
+        ? filter.some((f) => recursiveFilter(f, event))
+        : isObject(filter)
+        ? recursiveFilter(filter, event)
+        : false
+    );
+  };
 
   processEvents = async (events) => {
     Object.values(subs).forEach((sub) => {
-      const filteredEvents = events.filter((event) => !sub.filter || sub.filter.some((f) => recursiveFilter(f, event)));
+      const filteredEvents = getFilteredEvents(events, sub.filter);
       // console.log("Filtered events:", filteredEvents.length);
       if (filteredEvents.length > 0 && sub.url) {
+        sub.totalPosts = (sub.totalPosts || 0) + 1;
         axios({
-          method: 'post',
+          method: "post",
           url: sub.url,
           data: {
             secret: sub.secret,
-            events: filteredEvents
+            events: filteredEvents,
           },
           timeout: PostTimeout,
-        }).catch(() => {})
+        })
+          .then(() => {
+            sub.successPosts = (sub.successPosts || 0) + 1;
+          })
+          .catch(() => {
+            sub.failedPosts = (sub.failedPosts || 0) + 1;
+          });
       }
-    })
+    });
+
+    Object.values(wsSubs).forEach((sub) => {
+      const filteredEvents = getFilteredEvents(events, sub.filter);
+      if (filteredEvents.length > 0 && wsClients.has(sub.ws)) {
+        try {
+          sub.ws.send(
+            JSON.stringify({
+              secret: sub.secret,
+              events: filteredEvents,
+            })
+          );
+        } catch (e) {
+          console.log("Failed to send events to ws", e);
+        }
+      }
+    });
   };
+
+  const saveWsSubs = () => {
+    saveJson(
+      Object.values(wsSubs).map(({ ws, secret, filter }) => ({
+        xForwardedFor: ws.req.headers["x-forwarded-for"],
+        remoteAddress: ws.req.connection.remoteAddress,
+        secret,
+        filter,
+      })),
+      WsSubsFilename
+    );
+  };
+
+  wss.on("connection", (ws, req) => {
+    console.log("WS Connection open");
+    ws.req = req;
+
+    wsClients.set(ws, null);
+
+    ws.on("close", () => {
+      console.log("connection closed");
+      wsClients.delete(ws);
+      delete wsSubs[ws];
+    });
+
+    ws.on("message", (messageAsString) => {
+      try {
+        const message = JSON.parse(messageAsString);
+        if ("filter" in message && "secret" in message) {
+          console.log("WS subscribed to events");
+          wsSubs[ws] = {
+            ws,
+            secret: message.secret,
+            filter: message.filter,
+          };
+          saveWsSubs();
+        }
+      } catch (e) {
+        console.log("Bad message", e);
+      }
+    });
+  });
 
   scheduleUpdate(1);
 
-  router.post('/subscribe', ctx => {
+  // Save subs once a minute
+  setInterval(() => {
+    saveJson(subs, SubsFilename);
+  }, 60000);
+
+  router.post("/events", (ctx) => {
+    ctx.type = "application/json; charset=utf-8";
+    try {
+      const sub = ctx.request.body;
+      if ("filter" in sub) {
+        const filteredEvents = getFilteredEvents(pastEvents, sub.filter);
+
+        ctx.body = JSON.stringify(
+          {
+            events: filteredEvents,
+          },
+          null,
+          2
+        );
+      } else {
+        ctx.body = 'err: Required fields are "filter"';
+      }
+    } catch (e) {
+      ctx.body = `err: ${e}`;
+    }
+  });
+
+  router.post("/subscribe", (ctx) => {
     ctx.type = "application/json; charset=utf-8";
     try {
       const sub = ctx.request.body;
@@ -105,20 +232,25 @@ const PostTimeout = 1000;
         if (secret in subs) {
           throw new Error(`Secret "${secret}" is already present`);
         }
+        sub.ip = ctx.request.ip;
         subs[secret] = sub;
         saveJson(subs, SubsFilename);
-        ctx.body = JSON.stringify({
-          "ok": true,
-        }, null, 2);
+        ctx.body = JSON.stringify(
+          {
+            ok: true,
+          },
+          null,
+          2
+        );
       } else {
-        ctx.body = 'err: Required fields are "filter", "url", "secret"'
+        ctx.body = 'err: Required fields are "filter", "url", "secret"';
       }
     } catch (e) {
       ctx.body = `err: ${e}`;
     }
   });
 
-  router.post('/unsubscribe', ctx => {
+  router.post("/unsubscribe", (ctx) => {
     ctx.type = "application/json; charset=utf-8";
     try {
       const req = ctx.request.body;
@@ -126,9 +258,13 @@ const PostTimeout = 1000;
       if (secret in subs) {
         delete subs[secret];
         saveJson(subs, SubsFilename);
-        ctx.body = JSON.stringify({
-          "ok": true,
-        }, null, 2);
+        ctx.body = JSON.stringify(
+          {
+            ok: true,
+          },
+          null,
+          2
+        );
       } else {
         ctx.body = 'err: No subscription found for "secret"';
       }
@@ -136,18 +272,6 @@ const PostTimeout = 1000;
       ctx.body = `err: ${e}`;
     }
   });
-
-  router.post('/event', ctx => {
-    ctx.type = "application/json; charset=utf-8";
-    try {
-      const events = ctx.request.body;
-      console.log(events);
-      ctx.body = "ok";
-    } catch (e) {
-      ctx.body = `err: ${e}`;
-    }
-  });
-
 
   app
     .use(async (ctx, next) => {
@@ -160,5 +284,5 @@ const PostTimeout = 1000;
 
   const PORT = process.env.PORT || 3000;
   app.listen(PORT);
-  console.log('Listening on http://localhost:%d/', PORT);
+  console.log("Listening on http://localhost:%d/", PORT);
 })();

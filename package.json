@@ -4,11 +4,12 @@
   "main": "index.js",
   "license": "MIT",
   "dependencies": {
+    "axios": "^0.26.1",
     "koa": "^2.13.0",
-    "koa-router": "^10.1.0",
     "koa-bodyparser": "^4.3.0",
+    "koa-router": "^10.1.0",
     "pg": "^8.7.0",
-    "axios": "^0.26.1"
+    "ws": "^8.5.0"
   },
   "scripts": {
     "start": "node app",
@@ -16,6 +17,7 @@
   },
   "devDependencies": {
     "dotenv": "^8.2.0",
-    "nodemon": "^2.0.6"
+    "nodemon": "^2.0.6",
+    "prettier": "^2.2.1"
   }
 }
