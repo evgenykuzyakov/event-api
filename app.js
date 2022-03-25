@@ -76,7 +76,7 @@ const DefaultEventsLimit = 100;
   console.log("WebSocket server listening on http://localhost:%d/", WS_PORT);
 
   const wsClients = new Map();
-  const wsSubs = {};
+  const wsSubs = new Map();
 
   // subs.push({
   //   "filter": [{
@@ -140,7 +140,7 @@ const DefaultEventsLimit = 100;
       }
     });
 
-    Object.values(wsSubs).forEach((sub) => {
+    [...wsSubs.values()].forEach((sub) => {
       const filteredEvents = getFilteredEvents(events, sub.filter);
       if (filteredEvents.length > 0 && wsClients.has(sub.ws)) {
         try {
@@ -159,12 +159,14 @@ const DefaultEventsLimit = 100;
 
   const saveWsSubs = () => {
     saveJson(
-      Object.values(wsSubs).map(({ ws, secret, filter }) => ({
-        xForwardedFor: ws.req.headers["x-forwarded-for"],
-        remoteAddress: ws.req.connection.remoteAddress,
-        secret,
-        filter,
-      })),
+      [...wsSubs.values()].map(
+        ({ xForwardedFor, remoteAddress, secret, filter }) => ({
+          xForwardedFor,
+          remoteAddress,
+          secret,
+          filter,
+        })
+      ),
       WsSubsFilename
     );
   };
@@ -180,14 +182,14 @@ const DefaultEventsLimit = 100;
 
   wss.on("connection", (ws, req) => {
     console.log("WS Connection open");
-    ws.req = req;
 
     wsClients.set(ws, null);
 
     ws.on("close", () => {
       console.log("connection closed");
       wsClients.delete(ws);
-      delete wsSubs[ws];
+      wsSubs.delete(ws);
+      saveWsSubs();
     });
 
     ws.on("message", (messageAsString) => {
@@ -195,11 +197,13 @@ const DefaultEventsLimit = 100;
         const message = JSON.parse(messageAsString);
         if ("filter" in message && "secret" in message) {
           console.log("WS subscribed to events");
-          wsSubs[ws] = {
+          wsSubs.set(ws, {
             ws,
             secret: message.secret,
             filter: message.filter,
-          };
+            xForwardedFor: req.headers["x-forwarded-for"],
+            remoteAddress: req.connection.remoteAddress,
+          });
           saveWsSubs();
           if (message.fetch_past_events) {
             ws.send(
