@@ -50,9 +50,10 @@ const DefaultEventsLimit = 100;
 (async () => {
   const eventsFetcher = await Events.init();
 
-  let scheduleUpdate, processEvents;
+  const pastEvents = await eventsFetcher.fetchLastNEvents(PastEventsTrimTo);
+  pastEvents.reverse();
 
-  const pastEvents = [];
+  let scheduleUpdate, processEvents;
 
   scheduleUpdate = (delay) =>
     setTimeout(async () => {
