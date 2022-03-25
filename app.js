@@ -169,6 +169,15 @@ const DefaultEventsLimit = 100;
     );
   };
 
+  const getPastEvents = (filter, limit) => {
+    const filteredEvents = getFilteredEvents(pastEvents, filter);
+    limit = Math.min(
+      Math.max(parseInt(limit) || DefaultEventsLimit, 0),
+      Math.min(MaxEventsLimit, filteredEvents.length)
+    );
+    return filteredEvents.slice(filteredEvents.length - limit);
+  };
+
   wss.on("connection", (ws, req) => {
     console.log("WS Connection open");
     ws.req = req;
@@ -192,6 +201,18 @@ const DefaultEventsLimit = 100;
             filter: message.filter,
           };
           saveWsSubs();
+          if (message.fetch_past_events) {
+            ws.send(
+              JSON.stringify({
+                secret: message.secret,
+                events: getPastEvents(
+                  message.filter,
+                  message.fetch_past_events
+                ),
+                note: "past",
+              })
+            );
+          }
         }
       } catch (e) {
         console.log("Bad message", e);
@@ -211,15 +232,9 @@ const DefaultEventsLimit = 100;
     try {
       const body = ctx.request.body;
       if ("filter" in body) {
-        const filteredEvents = getFilteredEvents(pastEvents, body.filter);
-        const limit = Math.min(
-          Math.max(parseInt(body.limit) || DefaultEventsLimit, 0),
-          Math.min(MaxEventsLimit, filteredEvents.length)
-        );
-
         ctx.body = JSON.stringify(
           {
-            events: filteredEvents.slice(filteredEvents.length - limit),
+            events: getPastEvents(body.filter, body.limit),
           },
           null,
           2
