@@ -41,8 +41,8 @@ function loadJson(filename, ignore) {
 }
 
 const PostTimeout = 1000;
-const PastEventsLimit = 20000;
-const PastEventsTrimTo = 10000;
+const PastEventsLimit = 220000;
+const PastEventsTrimTo = 200000;
 
 const MaxEventsLimit = 1000;
 const DefaultEventsLimit = 100;
