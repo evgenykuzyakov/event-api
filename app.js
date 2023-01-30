@@ -183,6 +183,7 @@ const DefaultEventsLimit = 100;
 
   wss.on("connection", (ws, req) => {
     console.log("WS Connection open");
+    ws.on('error', console.error);
 
     wsClients.set(ws, null);
 
