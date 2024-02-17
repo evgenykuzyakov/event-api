@@ -17,11 +17,21 @@ const Events = {
         format: 'JSONEachRow',
       });
       const res = await query.json();
-      console.log(JSON.stringify(res, null, 2));
       lastBlockHeight = parseInt(res[0].last_block_height);
     }
     this.lastBlockHeight = lastBlockHeight;
     return this;
+  },
+
+  processEvents: function (events) {
+    events.forEach((event) => {
+      this.lastBlockHeight = Math.max(
+        this.lastBlockHeight,
+        parseInt(event.block_height)
+      );
+      event.block_timestamp = new Date(event.block_timestamp + "Z").getTime();
+    });
+    return events;
   },
 
   fetchLastNEvents: async function (limit) {
@@ -31,14 +41,7 @@ const Events = {
         format: 'JSONEachRow',
       }
     );
-    const res = await query.json();
-    res.forEach((row) => {
-      this.lastBlockHeight = Math.max(
-        this.lastBlockHeight,
-        parseInt(row.block_height)
-      );
-    });
-    return res;
+    return this.processEvents(await query.json());
   },
 
   fetchEvents: async function () {
@@ -49,14 +52,7 @@ const Events = {
         format: 'JSONEachRow',
       }
     );
-    const res = await query.json();
-    res.forEach((row) => {
-      this.lastBlockHeight = Math.max(
-        this.lastBlockHeight,
-        parseInt(row.block_height)
-      );
-    });
-    return res;
+    return this.processEvents(await query.json());
   },
 };
 
