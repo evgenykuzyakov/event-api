@@ -29,7 +29,7 @@ const Events = {
         this.lastBlockHeight,
         parseInt(event.block_height)
       );
-      event.block_timestamp = new Date(event.block_timestamp + "Z").getTime();
+      event.block_timestamp = new Date(event.block_timestamp + "Z").getTime() / 1000;
     });
     return events;
   },
