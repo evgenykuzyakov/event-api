@@ -1,62 +1,62 @@
-const { Client } = require("pg");
-
 require("dotenv").config();
+const { createClient } = require('@clickhouse/client');
 
 const MaxLimit = 10000;
 
 const Events = {
   init: async function (lastBlockHeight) {
-    const client = new Client({
-      connectionString: process.env.DATABASE_URL,
+    this.client = createClient({
+      host: process.env.DATABASE_URL,
+      username: process.env.DATABASE_USER,
+      password: process.env.DATABASE_PASSWORD,
+      database: process.env.DATABASE_DATABASE,
     });
-    await client.connect();
-    this.client = client;
     if (!lastBlockHeight) {
-      const res = await this.client.query(
-        "SELECT MAX(block_height) last_block_height from events"
-      );
-      lastBlockHeight = parseInt(res.rows[0].last_block_height);
+      const query = await this.client.query({
+        query: "SELECT MAX(block_height) last_block_height from events",
+        format: 'JSONEachRow',
+      });
+      const res = await query.json();
+      console.log(JSON.stringify(res, null, 2));
+      lastBlockHeight = parseInt(res[0].last_block_height);
     }
     this.lastBlockHeight = lastBlockHeight;
     return this;
   },
 
   fetchLastNEvents: async function (limit) {
-    const res = await this.client.query(
-      "SELECT * from events order by block_height desc limit $1",
-      [limit]
+    const query = await this.client.query({
+        query: "SELECT * from events order by block_height desc limit {limit: UInt32}",
+        query_params: {limit},
+        format: 'JSONEachRow',
+      }
     );
-    res.rows.forEach((row) => {
+    const res = await query.json();
+    res.forEach((row) => {
       this.lastBlockHeight = Math.max(
         this.lastBlockHeight,
         parseInt(row.block_height)
       );
-      try {
-        row.event = JSON.parse(row.event);
-      } catch (e) {
-        row.event = null;
-      }
     });
-    return res.rows;
+    return res;
   },
 
   fetchEvents: async function () {
-    const res = await this.client.query(
-      "SELECT * from events where block_height > $1 limit $2",
-      [this.lastBlockHeight, MaxLimit]
+    const query = await this.client.query(
+      {
+        query: "SELECT * from events where block_height > {lastBlockHeight: UInt64} limit {limit: UInt32}",
+        query_params: {limit: MaxLimit, lastBlockHeight: this.lastBlockHeight},
+        format: 'JSONEachRow',
+      }
     );
-    res.rows.forEach((row) => {
+    const res = await query.json();
+    res.forEach((row) => {
       this.lastBlockHeight = Math.max(
         this.lastBlockHeight,
         parseInt(row.block_height)
       );
-      try {
-        row.event = JSON.parse(row.event);
-      } catch (e) {
-        row.event = null;
-      }
     });
-    return res.rows;
+    return res;
   },
 };
 
