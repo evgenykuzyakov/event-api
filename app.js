@@ -254,59 +254,59 @@ const DefaultEventsLimit = 100;
     }
   });
 
-  router.post("/subscribe", (ctx) => {
-    ctx.type = "application/json; charset=utf-8";
-    try {
-      const body = ctx.request.body;
-      if ("filter" in body && "url" in body && "secret" in body) {
-        const secret = body.secret;
-        if (secret in subs) {
-          throw new Error(`Secret "${secret}" is already present`);
-        }
-        subs[secret] = {
-          ip: ctx.request.ip,
-          filter: body.filter,
-          url: body.url,
-          secret,
-        };
-        saveJson(subs, SubsFilename);
-        ctx.body = JSON.stringify(
-          {
-            ok: true,
-          },
-          null,
-          2
-        );
-      } else {
-        ctx.body = 'err: Required fields are "filter", "url", "secret"';
-      }
-    } catch (e) {
-      ctx.body = `err: ${e}`;
-    }
-  });
-
-  router.post("/unsubscribe", (ctx) => {
-    ctx.type = "application/json; charset=utf-8";
-    try {
-      const body = ctx.request.body;
-      const secret = body.secret;
-      if (secret in subs) {
-        delete subs[secret];
-        saveJson(subs, SubsFilename);
-        ctx.body = JSON.stringify(
-          {
-            ok: true,
-          },
-          null,
-          2
-        );
-      } else {
-        ctx.body = 'err: No subscription found for "secret"';
-      }
-    } catch (e) {
-      ctx.body = `err: ${e}`;
-    }
-  });
+  // router.post("/subscribe", (ctx) => {
+  //   ctx.type = "application/json; charset=utf-8";
+  //   try {
+  //     const body = ctx.request.body;
+  //     if ("filter" in body && "url" in body && "secret" in body) {
+  //       const secret = body.secret;
+  //       if (secret in subs) {
+  //         throw new Error(`Secret "${secret}" is already present`);
+  //       }
+  //       subs[secret] = {
+  //         ip: ctx.request.ip,
+  //         filter: body.filter,
+  //         url: body.url,
+  //         secret,
+  //       };
+  //       saveJson(subs, SubsFilename);
+  //       ctx.body = JSON.stringify(
+  //         {
+  //           ok: true,
+  //         },
+  //         null,
+  //         2
+  //       );
+  //     } else {
+  //       ctx.body = 'err: Required fields are "filter", "url", "secret"';
+  //     }
+  //   } catch (e) {
+  //     ctx.body = `err: ${e}`;
+  //   }
+  // });
+  //
+  // router.post("/unsubscribe", (ctx) => {
+  //   ctx.type = "application/json; charset=utf-8";
+  //   try {
+  //     const body = ctx.request.body;
+  //     const secret = body.secret;
+  //     if (secret in subs) {
+  //       delete subs[secret];
+  //       saveJson(subs, SubsFilename);
+  //       ctx.body = JSON.stringify(
+  //         {
+  //           ok: true,
+  //         },
+  //         null,
+  //         2
+  //       );
+  //     } else {
+  //       ctx.body = 'err: No subscription found for "secret"';
+  //     }
+  //   } catch (e) {
+  //     ctx.body = `err: ${e}`;
+  //   }
+  // });
 
   app
     .use(async (ctx, next) => {
