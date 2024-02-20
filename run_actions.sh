@@ -9,6 +9,7 @@ export RES_PATH=res/actions
 mkdir -p $RES_PATH
 
 export DATABASE_TABLE=actions
+export ACTION=actions
 export PORT=3015
 export WS_PORT=3016
 

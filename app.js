@@ -49,6 +49,7 @@ const MaxEventsLimit = 1000;
 const DefaultEventsLimit = 100;
 
 (async () => {
+  const action = process.env.ACTION;
   const eventsFetcher = await Events.init();
   console.log("Events initialized", eventsFetcher.lastBlockHeight);
 
@@ -234,7 +235,7 @@ const DefaultEventsLimit = 100;
     saveJson(subs, SubsFilename);
   }, 60000);
 
-  router.post("/events", (ctx) => {
+  router.post(`/${action}`, (ctx) => {
     ctx.type = "application/json; charset=utf-8";
     try {
       const body = ctx.request.body;
