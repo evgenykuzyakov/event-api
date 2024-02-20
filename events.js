@@ -14,8 +14,7 @@ const Events = {
     });
     if (!lastBlockHeight) {
       const query = await this.client.query({
-        query: "SELECT MAX(block_height) last_block_height from {table: String}",
-        query_params: {table: this.table},
+        query: `SELECT MAX(block_height) last_block_height from ${this.table}`,
         format: 'JSONEachRow',
       });
       const res = await query.json();
@@ -38,8 +37,8 @@ const Events = {
 
   fetchLastNEvents: async function (limit) {
     const query = await this.client.query({
-        query: "SELECT * from {table: String} order by block_height desc limit {limit: UInt32}",
-        query_params: {table: this.table, limit},
+        query: `SELECT * from ${this.table} order by block_height desc limit {limit: UInt32}`,
+        query_params: {limit},
         format: 'JSONEachRow',
       }
     );
@@ -49,8 +48,8 @@ const Events = {
   fetchEvents: async function () {
     const query = await this.client.query(
       {
-        query: "SELECT * from {table: String} where block_height > {lastBlockHeight: UInt64} limit {limit: UInt32}",
-        query_params: {table: this.table, limit: MaxLimit, lastBlockHeight: this.lastBlockHeight},
+        query: `SELECT * from ${this.table} where block_height > {lastBlockHeight: UInt64} limit {limit: UInt32}`,
+        query_params: {limit: MaxLimit, lastBlockHeight: this.lastBlockHeight},
         format: 'JSONEachRow',
       }
     );
