@@ -66,7 +66,7 @@ const DefaultEventsLimit = 100;
         pastEvents.splice(0, pastEvents.length - PastEventsTrimTo);
       }
       console.log(
-        `Fetched ${events.length} events. Total ${pastEvents.length} events.`
+        `Fetched ${events.length} ${action}. Total ${pastEvents.length} ${action}.`
       );
       await processEvents(events);
       scheduleUpdate(1000);
@@ -130,7 +130,7 @@ const DefaultEventsLimit = 100;
           url: sub.url,
           data: {
             secret: sub.secret,
-            events: filteredEvents,
+            [action]: filteredEvents,
           },
           timeout: PostTimeout,
         })
@@ -150,11 +150,11 @@ const DefaultEventsLimit = 100;
           sub.ws.send(
             JSON.stringify({
               secret: sub.secret,
-              events: filteredEvents,
+              [action]: filteredEvents,
             })
           );
         } catch (e) {
-          console.log("Failed to send events to ws", e);
+          console.log(`Failed to send ${action} to ws`, e);
         }
       }
     });
@@ -200,7 +200,7 @@ const DefaultEventsLimit = 100;
       try {
         const message = JSON.parse(messageAsString);
         if ("filter" in message && "secret" in message) {
-          console.log("WS subscribed to events");
+          console.log(`WS subscribed to ${action}`);
           wsSubs.set(ws, {
             ws,
             secret: message.secret,
@@ -209,13 +209,13 @@ const DefaultEventsLimit = 100;
             remoteAddress: req.connection.remoteAddress,
           });
           saveWsSubs();
-          if (message.fetch_past_events) {
+          if (message[`fetch_past_${action}`]) {
             ws.send(
               JSON.stringify({
                 secret: message.secret,
-                events: getPastEvents(
+                [action]: getPastEvents(
                   message.filter,
-                  message.fetch_past_events
+                  message[`fetch_past_${action}`]
                 ),
                 note: "past",
               })
@@ -242,7 +242,7 @@ const DefaultEventsLimit = 100;
       if ("filter" in body) {
         ctx.body = JSON.stringify(
           {
-            events: getPastEvents(body.filter, body.limit),
+            [action]: getPastEvents(body.filter, body.limit),
           },
           null,
           2
