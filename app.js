@@ -16,8 +16,9 @@ const axios = require("axios");
 
 const WebSocket = require("ws");
 
-const SubsFilename = "res/subs.json";
-const WsSubsFilename = "res/ws_subs.json";
+const ResPath = process.env.RES_PATH || "res";
+const SubsFilename = ResPath + "/subs.json";
+const WsSubsFilename = ResPath + "/ws_subs.json";
 
 function saveJson(json, filename) {
   try {
@@ -84,10 +85,9 @@ const DefaultEventsLimit = 100;
   //   "filter": [{
   //     "account_id": "nft.nearapps.near",
   //     "status": "SUCCESS",
-  //     "event": {
-  //       "standard": "nep171",
-  //       "event": "nft_mint",
-  //     }
+  //     "standard": "nep171",
+  //     "event": "nft_mint",
+  //     "data_account_id": "bla.near",
   //   }],
   //     "url": "http://127.0.0.1:3000/event"
   // });

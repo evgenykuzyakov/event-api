@@ -5,6 +5,7 @@ const MaxLimit = 10000;
 
 const Events = {
   init: async function (lastBlockHeight) {
+    this.table = process.env.DATABASE_TABLE;
     this.client = createClient({
       host: process.env.DATABASE_URL,
       username: process.env.DATABASE_USER,
@@ -13,7 +14,8 @@ const Events = {
     });
     if (!lastBlockHeight) {
       const query = await this.client.query({
-        query: "SELECT MAX(block_height) last_block_height from events",
+        query: "SELECT MAX(block_height) last_block_height from {table: String}",
+        query_params: {table: this.table},
         format: 'JSONEachRow',
       });
       const res = await query.json();
@@ -36,8 +38,8 @@ const Events = {
 
   fetchLastNEvents: async function (limit) {
     const query = await this.client.query({
-        query: "SELECT * from events order by block_height desc limit {limit: UInt32}",
-        query_params: {limit},
+        query: "SELECT * from {table: String} order by block_height desc limit {limit: UInt32}",
+        query_params: {table: this.table, limit},
         format: 'JSONEachRow',
       }
     );
@@ -47,8 +49,8 @@ const Events = {
   fetchEvents: async function () {
     const query = await this.client.query(
       {
-        query: "SELECT * from events where block_height > {lastBlockHeight: UInt64} limit {limit: UInt32}",
-        query_params: {limit: MaxLimit, lastBlockHeight: this.lastBlockHeight},
+        query: "SELECT * from {table: String} where block_height > {lastBlockHeight: UInt64} limit {limit: UInt32}",
+        query_params: {table: this.table, limit: MaxLimit, lastBlockHeight: this.lastBlockHeight},
         format: 'JSONEachRow',
       }
     );
