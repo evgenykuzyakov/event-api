@@ -37,8 +37,8 @@ const Events = {
 
   fetchLastNEvents: async function (limit) {
     const query = await this.client.query({
-        query: `SELECT * from ${this.table} order by block_height desc limit {limit: UInt32}`,
-        query_params: {limit},
+        query: `SELECT * from ${this.table}  where block_height > {blockHeight: UInt64} order by block_height desc limit {limit: UInt32}`,
+        query_params: {limit, blockHeight: this.lastBlockHeight - limit},
         format: 'JSONEachRow',
       }
     );
