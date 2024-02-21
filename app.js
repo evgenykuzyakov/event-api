@@ -60,16 +60,21 @@ const DefaultEventsLimit = 100;
 
   scheduleUpdate = (delay) =>
     setTimeout(async () => {
-      const events = await eventsFetcher.fetchEvents();
-      pastEvents.push(...events);
-      if (pastEvents.length > PastEventsLimit) {
-        pastEvents.splice(0, pastEvents.length - PastEventsTrimTo);
+      try {
+        const events = await eventsFetcher.fetchEvents();
+        pastEvents.push(...events);
+        if (pastEvents.length > PastEventsLimit) {
+          pastEvents.splice(0, pastEvents.length - PastEventsTrimTo);
+        }
+        console.log(
+          `Fetched ${events.length} ${action}. Total ${pastEvents.length} ${action}.`
+        );
+        await processEvents(events);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        scheduleUpdate(1000);
       }
-      console.log(
-        `Fetched ${events.length} ${action}. Total ${pastEvents.length} ${action}.`
-      );
-      await processEvents(events);
-      scheduleUpdate(1000);
     }, delay);
 
   const subs = loadJson(SubsFilename, true) || {};
@@ -185,7 +190,7 @@ const DefaultEventsLimit = 100;
 
   wss.on("connection", (ws, req) => {
     console.log("WS Connection open");
-    ws.on('error', console.error);
+    ws.on("error", console.error);
 
     wsClients.set(ws, null);
 
