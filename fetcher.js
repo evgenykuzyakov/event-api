@@ -55,7 +55,7 @@ const Fetcher = {
     for (const shard of block.shards) {
       const shardId = shard.shard_id;
       for (const outcome of shard.receipt_execution_outcomes) {
-        const txHash = outcome.txHash;
+        const txHash = outcome.tx_hash;
         const {
           predecessor_id: predecessorId,
           receiver_id: accountId,
@@ -73,7 +73,6 @@ const Fetcher = {
           "SuccessReceiptId" in executionStatus
             ? ReceiptStatus.Success
             : ReceiptStatus.Failure;
-        const returnValue = executionStatus.SuccessValue ?? null;
         if ("Action" in receipt) {
           const {
             signer_id: signerId,
@@ -87,9 +86,9 @@ const Fetcher = {
             if (log.startsWith(EventLogPrefix)) {
               let event = null;
               try {
-                const event = JSON.parse(log.slice(EventLogPrefix.length));
+                event = JSON.parse(log.slice(EventLogPrefix.length));
               } catch (e) {
-                console.debug("Failed to parse event", e);
+                console.debug("Failed to parse event log", e);
               }
               res.events.push({
                 blockHeight,
