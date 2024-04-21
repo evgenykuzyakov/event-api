@@ -1,10 +1,10 @@
 {
   "name": "events-api",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "main": "index.js",
   "license": "MIT",
   "dependencies": {
-    "@clickhouse/client": "^0.2.9",
+    "dotenv": "^8.2.0",
     "@koa/cors": "^3.2.0",
     "koa": "^2.13.0",
     "koa-bodyparser": "^4.3.0",
@@ -16,7 +16,6 @@
     "dev": "nodemon -r dotenv/config app"
   },
   "devDependencies": {
-    "dotenv": "^8.2.0",
     "nodemon": "^2.0.6",
     "prettier": "^2.2.1"
   }

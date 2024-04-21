@@ -1,3 +1,4 @@
+require("dotenv").config();
 const fs = require("fs");
 
 const cors = require("@koa/cors");
@@ -39,8 +40,8 @@ function loadJson(filename, ignore) {
   return null;
 }
 
-const PastRowsLimit = 1020000;
-const PastRowsTrimTo = 1000000;
+const PastRowsTrimTo = parseInt(process.env.HISTORY_LIMIT || "1000000");
+const PastRowsLimit = Math.round(PastRowsTrimTo * 1.02);
 
 const MaxRowsLimit = 1000;
 const DefaultRowsLimit = 100;

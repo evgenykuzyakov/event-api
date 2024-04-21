@@ -1,7 +1,3 @@
-require("dotenv").config();
-const { createClient } = require("@clickhouse/client");
-
-const MaxLimit = 10000;
 const MainnetUrl = "https://mainnet.neardata.xyz/v0";
 const EventLogPrefix = "EVENT_JSON:";
 
