@@ -40,7 +40,7 @@ function loadJson(filename, ignore) {
 }
 
 const PastRowsLimit = 1020000;
-const PastRowsTrimTo = 10000;
+const PastRowsTrimTo = 1000000;
 
 const MaxRowsLimit = 1000;
 const DefaultRowsLimit = 100;
