@@ -11,13 +11,11 @@ const router = new Router();
 
 const bodyParser = require("koa-bodyparser");
 
-const Events = require("./events");
-const axios = require("axios");
+const Fetcher = require("./fetcher");
 
 const WebSocket = require("ws");
 
 const ResPath = process.env.RES_PATH || "res";
-const SubsFilename = ResPath + "/subs.json";
 const WsSubsFilename = ResPath + "/ws_subs.json";
 
 function saveJson(json, filename) {
@@ -41,43 +39,49 @@ function loadJson(filename, ignore) {
   return null;
 }
 
-const PostTimeout = 1000;
-const PastEventsLimit = 1020000;
-const PastEventsTrimTo = 10000;
+const PastRowsLimit = 1020000;
+const PastRowsTrimTo = 10000;
 
-const MaxEventsLimit = 1000;
-const DefaultEventsLimit = 100;
+const MaxRowsLimit = 1000;
+const DefaultRowsLimit = 100;
 
 (async () => {
   const action = process.env.ACTION;
-  const eventsFetcher = await Events.init();
-  console.log("Events initialized", eventsFetcher.lastBlockHeight);
+  const fetcher = await Fetcher.init();
+  console.log("Fetcher initialized", fetcher.lastBlockHeight);
 
-  const pastEvents = await eventsFetcher.fetchLastNEvents(PastEventsTrimTo);
-  pastEvents.reverse();
+  const fetchNext = async () => {
+    try {
+      const res = await fetcher.fetchNextBlock();
+      const rows = action === "actions" ? res.actions : res.events;
+      console.log(`Fetched ${rows.length} ${action}.`);
+      return rows;
+    } catch (e) {
+      console.error(e);
+    }
+    return [];
+  };
 
-  let scheduleUpdate, processEvents;
-
-  scheduleUpdate = (delay) =>
-    setTimeout(async () => {
+  const pastRows = [];
+  // Spawning fetch thread
+  let fetchThread, processRows;
+  fetchThread = async () => {
+    while (true) {
       try {
-        const events = await eventsFetcher.fetchEvents();
-        pastEvents.push(...events);
-        if (pastEvents.length > PastEventsLimit) {
-          pastEvents.splice(0, pastEvents.length - PastEventsTrimTo);
+        const rows = await fetchNext();
+        pastRows.push(...rows);
+        if (pastRows.length > PastRowsLimit) {
+          pastRows.splice(0, pastRows.length - PastRowsTrimTo);
         }
-        console.log(
-          `Fetched ${events.length} ${action}. Total ${pastEvents.length} ${action}.`
-        );
-        await processEvents(events);
+        console.log(`Total ${pastRows.length} ${action}.`);
+        processRows(rows);
       } catch (e) {
         console.error(e);
-      } finally {
-        scheduleUpdate(1000);
       }
-    }, delay);
+    }
+  };
 
-  const subs = loadJson(SubsFilename, true) || {};
+  // const subs = loadJson(SubsFilename, true) || {};
 
   const WS_PORT = process.env.WS_PORT || 7071;
 
@@ -114,42 +118,19 @@ const DefaultEventsLimit = 100;
     }
   };
 
-  const getFilteredEvents = (events, filter) => {
-    return events.filter((event) =>
+  const getFilteredRows = (rows, filter) => {
+    return rows.filter((row) =>
       Array.isArray(filter)
-        ? filter.some((f) => recursiveFilter(f, event))
+        ? filter.some((f) => recursiveFilter(f, row))
         : isObject(filter)
-        ? recursiveFilter(filter, event)
+        ? recursiveFilter(filter, row)
         : false
     );
   };
 
-  processEvents = async (events) => {
-    Object.values(subs).forEach((sub) => {
-      const filteredEvents = getFilteredEvents(events, sub.filter);
-      // console.log("Filtered events:", filteredEvents.length);
-      if (filteredEvents.length > 0 && sub.url) {
-        sub.totalPosts = (sub.totalPosts || 0) + 1;
-        axios({
-          method: "post",
-          url: sub.url,
-          data: {
-            secret: sub.secret,
-            [action]: filteredEvents,
-          },
-          timeout: PostTimeout,
-        })
-          .then(() => {
-            sub.successPosts = (sub.successPosts || 0) + 1;
-          })
-          .catch(() => {
-            sub.failedPosts = (sub.failedPosts || 0) + 1;
-          });
-      }
-    });
-
+  const processRowsInternal = async (rows) => {
     [...wsSubs.values()].forEach((sub) => {
-      const filteredEvents = getFilteredEvents(events, sub.filter);
+      const filteredEvents = getFilteredRows(rows, sub.filter);
       if (filteredEvents.length > 0 && wsClients.has(sub.ws)) {
         try {
           sub.ws.send(
@@ -165,6 +146,15 @@ const DefaultEventsLimit = 100;
     });
   };
 
+  processRows = (rows) => {
+    processRowsInternal(rows).catch((e) =>
+      console.error("Process Rows failed", e)
+    );
+  };
+
+  console.log("Starting fetch thread");
+  fetchThread().catch((e) => console.error("Fetch thread failed", e));
+
   const saveWsSubs = () => {
     saveJson(
       [...wsSubs.values()].map(
@@ -179,13 +169,13 @@ const DefaultEventsLimit = 100;
     );
   };
 
-  const getPastEvents = (filter, limit) => {
-    const filteredEvents = getFilteredEvents(pastEvents, filter);
+  const getPastRows = (filter, limit) => {
+    const filteredRows = getFilteredRows(pastRows, filter);
     limit = Math.min(
-      Math.max(parseInt(limit) || DefaultEventsLimit, 0),
-      Math.min(MaxEventsLimit, filteredEvents.length)
+      Math.max(parseInt(limit) || DefaultRowsLimit, 0),
+      Math.min(MaxRowsLimit, filteredRows.length)
     );
-    return filteredEvents.slice(filteredEvents.length - limit);
+    return filteredRows.slice(filteredRows.length - limit);
   };
 
   wss.on("connection", (ws, req) => {
@@ -218,7 +208,7 @@ const DefaultEventsLimit = 100;
             ws.send(
               JSON.stringify({
                 secret: message.secret,
-                [action]: getPastEvents(
+                [action]: getPastRows(
                   message.filter,
                   message[`fetch_past_${action}`]
                 ),
@@ -233,12 +223,10 @@ const DefaultEventsLimit = 100;
     });
   });
 
-  scheduleUpdate(1);
-
-  // Save subs once a minute
-  setInterval(() => {
-    saveJson(subs, SubsFilename);
-  }, 60000);
+  // // Save subs once a minute
+  // setInterval(() => {
+  //   saveJson(subs, SubsFilename);
+  // }, 60000);
 
   router.post(`/${action}`, (ctx) => {
     ctx.type = "application/json; charset=utf-8";
@@ -247,7 +235,7 @@ const DefaultEventsLimit = 100;
       if ("filter" in body) {
         ctx.body = JSON.stringify(
           {
-            [action]: getPastEvents(body.filter, body.limit),
+            [action]: getPastRows(body.filter, body.limit),
           },
           null,
           2
