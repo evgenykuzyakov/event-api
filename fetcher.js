@@ -1,6 +1,6 @@
 const MainnetUrl = "https://mainnet.neardata.xyz/v0";
 const EventLogPrefix = "EVENT_JSON:";
-const FetchTimeoutStart = 2000;
+const FetchTimeoutStart = 200;
 const FetchTimeoutIncrease = 500;
 
 const ReceiptStatus = {
@@ -8,9 +8,10 @@ const ReceiptStatus = {
   Failure: "FAILURE",
 };
 
-function timeoutPromise(time) {
+function timeoutPromise(time, abortController) {
   return new Promise((resolve, reject) => {
     setTimeout(() => {
+      abortController.abort();
       return reject(`Timeout: ${time}ms exceeded`);
     }, time);
   });
@@ -20,9 +21,9 @@ const fetchBlock = async (blockHeight) => {
   const iters = 10;
   let timeout = 100;
   let fetchTimeout = FetchTimeoutStart;
-  const jsonFetch = async (url) => {
+  const jsonFetch = async (url, abortController) => {
     const start = Date.now();
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: abortController.signal });
     const text = await response.text();
     const elapsed = Date.now() - start;
     console.log(`Fetched ${text.length} bytes. Elapsed: ${elapsed}ms`);
@@ -31,8 +32,12 @@ const fetchBlock = async (blockHeight) => {
   for (let i = 0; i < iters; i++) {
     try {
       const url = `${MainnetUrl}/block/${blockHeight}`;
+      const abortController = new AbortController();
       console.log("Fetching block", url);
-      return await Promise.race([jsonFetch(url), timeoutPromise(fetchTimeout)]);
+      return await Promise.race([
+        jsonFetch(url, abortController),
+        timeoutPromise(fetchTimeout, abortController),
+      ]);
     } catch (e) {
       console.error("Failed to fetch block", blockHeight, e);
       await new Promise((r) => setTimeout(r, timeout));
