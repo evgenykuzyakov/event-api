@@ -55,7 +55,6 @@ const DefaultRowsLimit = 100;
     try {
       const res = await fetcher.fetchNextBlock();
       const rows = action === "actions" ? res.actions : res.events;
-      console.log(`Fetched ${rows.length} ${action}.`);
       return rows;
     } catch (e) {
       console.error(e);
@@ -74,7 +73,9 @@ const DefaultRowsLimit = 100;
         if (pastRows.length > PastRowsLimit) {
           pastRows.splice(0, pastRows.length - PastRowsTrimTo);
         }
-        console.log(`Total ${pastRows.length} ${action}.`);
+        console.log(
+          `Added ${rows.length} ${action}. Total ${pastRows.length} ${action}.`
+        );
         processRows(rows);
       } catch (e) {
         console.error(e);

@@ -1,23 +1,42 @@
 const MainnetUrl = "https://mainnet.neardata.xyz/v0";
 const EventLogPrefix = "EVENT_JSON:";
+const FetchTimeoutStart = 2000;
+const FetchTimeoutIncrease = 500;
 
 const ReceiptStatus = {
   Success: "SUCCESS",
   Failure: "FAILURE",
 };
 
+function timeoutPromise(time) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      return reject(`Timeout: ${time}ms exceeded`);
+    }, time);
+  });
+}
+
 const fetchBlock = async (blockHeight) => {
   const iters = 10;
   let timeout = 100;
+  let fetchTimeout = FetchTimeoutStart;
+  const jsonFetch = async (url) => {
+    const start = Date.now();
+    const response = await fetch(url);
+    const text = await response.text();
+    const elapsed = Date.now() - start;
+    console.log(`Fetched ${text.length} bytes. Elapsed: ${elapsed}ms`);
+    return JSON.parse(text);
+  };
   for (let i = 0; i < iters; i++) {
     try {
       const url = `${MainnetUrl}/block/${blockHeight}`;
-      console.log("Fetching block", blockHeight, url);
-      const query = await fetch(url);
-      return await query.json();
+      console.log("Fetching block", url);
+      return await Promise.race([jsonFetch(url), timeoutPromise(fetchTimeout)]);
     } catch (e) {
       console.error("Failed to fetch block", blockHeight, e);
       await new Promise((r) => setTimeout(r, timeout));
+      fetchTimeout += FetchTimeoutIncrease;
       timeout *= 2;
     }
   }
