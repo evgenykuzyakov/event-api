@@ -1,7 +1,7 @@
 const MainnetUrl = "https://mainnet.neardata.xyz/v0";
 const EventLogPrefix = "EVENT_JSON:";
-const FetchTimeoutStart = 2000;
-const FetchTimeoutIncrease = 500;
+const FetchTimeoutStart = 10000;
+const FetchTimeoutIncrease = 5000;
 
 const ReceiptStatus = {
   Success: "SUCCESS",
