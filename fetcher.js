@@ -110,7 +110,7 @@ const Fetcher = {
               } catch (e) {
                 console.debug("Failed to parse event log", e);
               }
-              res.events.push({
+              const fullEvent = {
                 blockHeight,
                 blockHash,
                 blockTimestampMs,
@@ -125,7 +125,8 @@ const Fetcher = {
                 status,
                 logIndex,
                 event,
-              });
+              };
+              res.events.push(fullEvent);
             }
           }
 
@@ -136,7 +137,7 @@ const Fetcher = {
             actionIndex++
           ) {
             const action = actions[actionIndex];
-            res.actions.push({
+            const fullAction = {
               blockHeight,
               blockHash,
               blockTimestampMs,
@@ -154,7 +155,8 @@ const Fetcher = {
               gasPrice,
               actionIndex,
               action,
-            });
+            };
+            res.actions.push(fullAction);
           }
         }
         ++receiptIndex;

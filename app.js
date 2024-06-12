@@ -1,5 +1,6 @@
 require("dotenv").config();
 const fs = require("fs");
+const { getFilteredRows, saveJson, loadJson } = require("./utils");
 
 const cors = require("@koa/cors");
 
@@ -19,36 +20,32 @@ const WebSocket = require("ws");
 const ResPath = process.env.RES_PATH || "res";
 const WsSubsFilename = ResPath + "/ws_subs.json";
 
-function saveJson(json, filename) {
-  try {
-    const data = JSON.stringify(json);
-    fs.writeFileSync(filename, data);
-  } catch (e) {
-    console.error("Failed to save JSON:", filename, e);
-  }
-}
-
-function loadJson(filename, ignore) {
-  try {
-    let rawData = fs.readFileSync(filename);
-    return JSON.parse(rawData);
-  } catch (e) {
-    if (!ignore) {
-      console.error("Failed to load JSON:", filename, e);
-    }
-  }
-  return null;
-}
-
 const PastRowsTrimTo = parseInt(process.env.HISTORY_LIMIT || "1000000");
 const PastRowsLimit = Math.round(PastRowsTrimTo * 1.02);
+
+const SaveLastBlock = process.env.SAVE_LAST_BLOCK === "true";
+const LastBlockFilename = ResPath + "/last_block.json";
 
 const MaxRowsLimit = 1000;
 const DefaultRowsLimit = 100;
 
 (async () => {
+  if (!fs.existsSync(ResPath)) {
+    fs.mkdirSync(ResPath);
+  }
+
+  const lastBlockHeight =
+    (SaveLastBlock && loadJson(LastBlockFilename, true)) || undefined;
+
   const action = process.env.ACTION;
-  const fetcher = await Fetcher.init();
+  let filter = {};
+  try {
+    filter = JSON.parse(process.env.FILTER ?? "{}");
+  } catch (e) {
+    console.error("Failed to parse filter", e);
+  }
+
+  const fetcher = await Fetcher.init(lastBlockHeight);
   console.log("Fetcher initialized", fetcher.lastBlockHeight);
 
   const fetchNext = async () => {
@@ -69,13 +66,17 @@ const DefaultRowsLimit = 100;
     while (true) {
       try {
         const rows = await fetchNext();
-        pastRows.push(...rows);
+        const filteredRows = getFilteredRows(rows, filter);
+        pastRows.push(...filteredRows);
         if (pastRows.length > PastRowsLimit) {
           pastRows.splice(0, pastRows.length - PastRowsTrimTo);
         }
         console.log(
-          `Added ${rows.length} ${action}. Total ${pastRows.length} ${action}.`
+          `Added ${filteredRows.length} out of ${rows.length} ${action}. Total ${pastRows.length} ${action}.`
         );
+        if (SaveLastBlock) {
+          saveJson(fetcher.lastBlockHeight, LastBlockFilename);
+        }
         processRows(rows);
       } catch (e) {
         console.error(e);
@@ -103,32 +104,6 @@ const DefaultRowsLimit = 100;
   //   }],
   //     "url": "http://127.0.0.1:3000/event"
   // });
-
-  const isObject = function (o) {
-    return o === Object(o) && !Array.isArray(o) && typeof o !== "function";
-  };
-
-  const recursiveFilter = (filter, obj) => {
-    if (isObject(filter) && isObject(obj)) {
-      return Object.keys(filter).every((key) =>
-        recursiveFilter(filter[key], obj[key])
-      );
-    } else if (Array.isArray(filter) && Array.isArray(obj)) {
-      return filter.every((value, index) => recursiveFilter(value, obj[index]));
-    } else {
-      return filter === obj;
-    }
-  };
-
-  const getFilteredRows = (rows, filter) => {
-    return rows.filter((row) =>
-      Array.isArray(filter)
-        ? filter.some((f) => recursiveFilter(f, row))
-        : isObject(filter)
-        ? recursiveFilter(filter, row)
-        : false
-    );
-  };
 
   const processRowsInternal = async (rows) => {
     [...wsSubs.values()].forEach((sub) => {
