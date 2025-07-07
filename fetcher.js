@@ -23,7 +23,15 @@ const fetchBlock = async (blockHeight) => {
   let fetchTimeout = FetchTimeoutStart;
   const jsonFetch = async (url, abortController) => {
     const start = Date.now();
-    const response = await fetch(url, { signal: abortController.signal });
+    const response = await fetch(url, {
+      signal: abortController.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "User-Agent": "Events-API-Fetcher/1.0",
+        Authorization: `Bearer ${process.env.FASTNEAR_BEARER || ""}`,
+      },
+    });
     const text = await response.text();
     const elapsed = Date.now() - start;
     console.log(`Fetched ${text.length} bytes. Elapsed: ${elapsed}ms`);
